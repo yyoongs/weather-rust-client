@@ -1,38 +1,55 @@
 mod model;
+use reqwest::header::AUTHORIZATION;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // A hard-coded JSON
-    let json = r#"
-            {
-              "main": {
-                "temp": 30.94
-              }
-            }
-        "#;
-
-    // Deserialize the hardcoded JSON into a Weather struct
-    let weather1: model::Weather = serde_json::from_str(json).unwrap();
-
-    println!("\nWeather from a JSON we hard-coded locally:\n{:?}", weather1);
-
-    //
-    // Now that we know we can deserialize a hard-coded JSON into a struct model,
     // let's see if we can fetch the weather from the backend.
     //
 
     let client = reqwest::Client::new();
-
+    let params = [("username", "choyongs"), ("password", "123456789")];
     let response = client
-        .get("https://api.openweathermap.org/data/2.5/weather?q=corvallis&appid=b98e3f089c86867862f28236d174368a&&units=imperial")
+        .post("http://localhost:3000/v1/auth")
+        .form(&params)
         .send()
         .await?;
 
-    let weather2 = response
-        .json::<model::Weather>()
+    let token_response = response
+        .json::<model::Token>()
         .await?;
 
-    println!("\nWeather from openweathermap.org:\n {:?}", weather2);
+    println!("\nv1/auth token:\n {:?}\n", token_response);
+    println!("\nv1/jwt:\n {:?}\n", token_response.AccessToken);
+
+    let header_value = format!("Bearer {}", token_response.AccessToken);
+    println!("\nheader:\n {:?}\n", header_value);
+
+    let helloRes = client
+        .get("http://localhost:3000/v1/hello")
+        .header(AUTHORIZATION, header_value)
+        .send()
+        .await?;
+
+    let hello_message = helloRes
+        .text()
+        .await?;
+
+    println!("Hello from Node Backend:\n {:?}\n", hello_message);
+
+    let header_value = format!("Bearer {}", token_response.AccessToken);
+
+    let weatherRes = client
+        .get("http://localhost:3000/v1/weather")
+        .header(AUTHORIZATION, header_value)
+        .send()
+        .await?;
+
+    let weather_message = weatherRes
+        .text()
+        .await?;
+
+    println!("weather from Node Backend:\n {:?}\n", weather_message);
+
 
     Ok(())
 }
